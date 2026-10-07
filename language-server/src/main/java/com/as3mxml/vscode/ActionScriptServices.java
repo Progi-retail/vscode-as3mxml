@@ -149,6 +149,7 @@ import com.as3mxml.vscode.project.ActionScriptProjectData;
 import com.as3mxml.vscode.project.ILspProject;
 import com.as3mxml.vscode.project.IProjectConfigStrategy;
 import com.as3mxml.vscode.project.IProjectConfigStrategyFactory;
+import com.as3mxml.vscode.project.LspASCompilationUnit;
 import com.as3mxml.vscode.project.ProjectOptions;
 import com.as3mxml.vscode.project.SimpleProjectConfigStrategy;
 import com.as3mxml.vscode.providers.CodeActionProvider;
@@ -218,6 +219,8 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
     private RealTimeProblemsChecker realTimeProblemsChecker;
     private Future<?> realTimeProblemsFuture;
     private Set<URI> notOnSourcePathSet = new HashSet<>();
+    private ILspProject purgeProject;
+    private boolean autoMemoryPurge = false;
     private boolean realTimeProblems = true;
     private boolean showFileOutsideSourcePath = true;
     private boolean concurrentRequests = true;
@@ -375,6 +378,7 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             CompletionProvider provider = new CompletionProvider(actionScriptProjectManager, fileTracker,
@@ -382,6 +386,8 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             return provider.completion(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -420,12 +426,15 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             HoverProvider provider = new HoverProvider(actionScriptProjectManager, fileTracker);
             return provider.hover(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -456,12 +465,15 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             SignatureHelpProvider provider = new SignatureHelpProvider(actionScriptProjectManager, fileTracker);
             return provider.signatureHelp(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -493,12 +505,15 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             DefinitionProvider provider = new DefinitionProvider(actionScriptProjectManager, fileTracker);
             return provider.definition(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -530,12 +545,15 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             TypeDefinitionProvider provider = new TypeDefinitionProvider(actionScriptProjectManager, fileTracker);
             return provider.typeDefinition(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -566,12 +584,15 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             ImplementationProvider provider = new ImplementationProvider(actionScriptProjectManager, fileTracker);
             return provider.implementation(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -602,12 +623,15 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             ReferencesProvider provider = new ReferencesProvider(actionScriptProjectManager, fileTracker);
             return provider.references(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -758,6 +782,7 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             CodeActionProvider provider = new CodeActionProvider(actionScriptProjectManager, fileTracker);
@@ -766,6 +791,8 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             return provider.codeAction(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -864,6 +891,7 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             RenameProvider provider = new RenameProvider(actionScriptProjectManager, fileTracker);
@@ -880,6 +908,8 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             return result;
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -923,6 +953,7 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             cancelToken.checkCanceled();
         }
 
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             InlayHintProvider provider = new InlayHintProvider(actionScriptProjectManager);
@@ -931,6 +962,8 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             return provider.inlayHint(params, cancelToken);
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
     }
 
@@ -1398,6 +1431,7 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
         this.updateSourcePathWarning(settings);
         this.updateJVMArgs(settings);
         this.updateConcurrentRequests(settings);
+        this.updateAutoMemoryPurge(settings);
         this.updateCodeGenerationGetterSettersForcePublicFunctions(settings);
         this.updateCodeGenerationGetterSettersForcePrivateVariable(settings);
         this.updateSourcesOrganizeImportsAddMissingImports(settings);
@@ -2038,6 +2072,19 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
         return project;
     }
 
+    private void updatePurgeState() {
+        Set<String> openPaths = new HashSet<>();
+        for (Path openFilePath : fileTracker.getOpenFiles()) {
+            openPaths.add(openFilePath.toAbsolutePath().normalize().toString());
+        }
+        LspASCompilationUnit.setOpenPaths(openPaths);
+        purgeProject = null;
+        ActionScriptProjectData projectData = actionScriptProjectManager.getFallbackProjectData();
+        if (projectData != null) {
+            purgeProject = projectData.project;
+        }
+    }
+
     private void clearProblemsForURI(URI uri) {
         PublishDiagnosticsParams publish = new PublishDiagnosticsParams();
         ArrayList<Diagnostic> diagnostics = new ArrayList<>();
@@ -2067,6 +2114,7 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
         }
 
         ProblemQuery problemQuery = projectDataToProblemQuery(projectData);
+        LspASCompilationUnit.pinASTsToKeepAlive();
         compilerWorkspace.startBuilding();
         try {
             if (!project.equals(projectData.project)) {
@@ -2103,6 +2151,8 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             }
         } finally {
             compilerWorkspace.doneBuilding();
+            updatePurgeState();
+            LspASCompilationUnit.unpinAndRemoveASTs(purgeProject);
         }
         publishDiagnosticsForProblemQuery(problemQuery, projectData.codeProblemTracker, projectData, true);
     }
@@ -2552,6 +2602,26 @@ public class ActionScriptServices implements TextDocumentService, WorkspaceServi
             return;
         }
         concurrentRequests = newConcurrentRequests;
+    }
+
+    private void updateAutoMemoryPurge(JsonObject settings) {
+        if (!settings.has("as3mxml")) {
+            return;
+        }
+        JsonObject as3mxml = settings.get("as3mxml").getAsJsonObject();
+        if (!as3mxml.has("languageServer")) {
+            return;
+        }
+        JsonObject languageServer = as3mxml.get("languageServer").getAsJsonObject();
+        if (!languageServer.has("autoMemoryPurge")) {
+            return;
+        }
+        boolean newAutoMemoryPurge = languageServer.get("autoMemoryPurge").getAsBoolean();
+        if (autoMemoryPurge == newAutoMemoryPurge) {
+            return;
+        }
+        autoMemoryPurge = newAutoMemoryPurge;
+        LspASCompilationUnit.setPurgeEnabled(autoMemoryPurge);
     }
 
     private void updateCodeGenerationGetterSettersForcePublicFunctions(JsonObject settings) {
